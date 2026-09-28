@@ -1,0 +1,67 @@
+#if defined(ESP32)
+  #include <WiFi.h>
+#else
+  #include <ESP8266WiFi.h>
+#endif
+#include <PubSubClient.h>   // Instalar "PubSubClient" (Nick O'Leary) desde el Gestor de Librerías
+
+const char* WIFI_SSID = "IPESMI TECNICO";
+const char* WIFI_PASS = "tecnico25";
+
+const char* MQTT_HOST = "172.21.0.244";
+const int   MQTT_PORT = 1883;
+const char* TOPIC     = "habitacion1/paciente1/bpm";  // cambialo por el que usen
+
+WiFiClient espClient;
+PubSubClient mqtt(espClient);
+
+void conectarWiFi() {
+  WiFi.mode(WIFI_STA);
+  WiFi.begin(WIFI_SSID, WIFI_PASS);
+  Serial.print("Conectando WiFi");
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(500);
+    Serial.print(".");
+  }
+  Serial.print("\nWiFi OK, IP: ");
+  Serial.println(WiFi.localIP());
+}
+
+void conectarMQTT() {
+  while (!mqtt.connected()) {
+    Serial.print("Conectando a MQTT...");
+    String id = "esp-test-" + String(random(0xffff), HEX);
+    if (mqtt.connect(id.c_str())) {
+      Serial.println("OK");
+    } else {
+      Serial.print("fallo, rc=");
+      Serial.println(mqtt.state());
+      delay(2000);
+    }
+  }
+}
+
+void setup() {
+  Serial.begin(115200);
+  randomSeed(micros());
+  conectarWiFi();
+  mqtt.setServer(MQTT_HOST, MQTT_PORT);
+}
+
+void loop() {
+  if (WiFi.status() != WL_CONNECTED) conectarWiFi();
+  if (!mqtt.connected()) conectarMQTT();
+  mqtt.loop();
+
+  int bpm = random(40, 140);            // número falso entre 40 y 139
+  char msg[16];
+  snprintf(msg, sizeof(msg), "%d", bpm);
+
+  if (mqtt.publish(TOPIC, msg)) {
+    Serial.print("Enviado: ");
+    Serial.println(msg);
+  } else {
+    Serial.println("Error al publicar");
+  }
+  delay(2000);
+}
